@@ -21,7 +21,8 @@ RUN apt-get -y update && \
     apt-get -y install --no-install-recommends \
     bc \
     emacs24-bin-common \
-    gcc \
+    gcc g++-5 gcc-5 \
+    flex bison \
     git \
     libc6-dev-i386 \
     make \
@@ -35,6 +36,11 @@ RUN apt-get -y update && \
     python3-pip \
     python3-setuptools \
     wget
+
+# Python dependencies of awscli
+RUN apt-get -y install --no-install-recommends \
+    libpython-dev libpython3-dev python-dev python3-dev \
+    python-wheel python3-wheel
 
 # install libssl-dev for encryption SDK
 # install cmake, openssl, libssl-dev for MQTT
