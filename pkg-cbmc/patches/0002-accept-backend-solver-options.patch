@@ -1,0 +1,444 @@
+From fc64d4894374896171adeb2ac5a8bd5aec4e825b Mon Sep 17 00:00:00 2001
+From: Chaitanya Mangla <manglac@amazon.com>
+Date: Wed, 6 Nov 2019 17:09:02 -0800
+Subject: [PATCH 1/5] Patch MiniSAT to export option parser
+
+---
+ ...nisat-2.2.1-export-parseSingleOption.patch | 76 +++++++++++++++++++
+ src/Makefile                                  |  2 +-
+ 2 files changed, 77 insertions(+), 1 deletion(-)
+ create mode 100644 scripts/minisat-2.2.1-export-parseSingleOption.patch
+
+diff --git a/scripts/minisat-2.2.1-export-parseSingleOption.patch b/scripts/minisat-2.2.1-export-parseSingleOption.patch
+new file mode 100644
+index 000000000..c3ad4d6f0
+--- /dev/null
++++ b/scripts/minisat-2.2.1-export-parseSingleOption.patch
+@@ -0,0 +1,76 @@
++From f394073844d6abe65dbd81eb6a787ae25e780e77 Mon Sep 17 00:00:00 2001
++From: Chaitanya Mangla <manglac@amazon.com>
++Date: Wed, 6 Nov 2019 16:20:14 -0800
++Subject: [PATCH] Exporting parseSingleOption
++
++---
++ minisat/utils/Options.cc | 22 +++++++++++++---------
++ minisat/utils/Options.h  |  2 ++
++ 2 files changed, 15 insertions(+), 9 deletions(-)
++
++diff --git a/minisat/utils/Options.cc b/minisat/utils/Options.cc
++index 83c40e8..3484d8f 100644
++--- a/minisat/utils/Options.cc
+++++ b/minisat/utils/Options.cc
++@@ -34,25 +34,29 @@ void Minisat::parseOptions(int& argc, char** argv, bool strict)
++             else if (match(str, "-verb"))
++                 printUsageAndExit(argc, argv, true);
++         } else {
++-            bool parsed_ok = false;
++-        
++-            for (int k = 0; !parsed_ok && k < Option::getOptionList().size(); k++){
++-                parsed_ok = Option::getOptionList()[k]->parse(argv[i]);
++-
++-                // fprintf(stderr, "checking %d: %s against flag <%s> (%s)\n", i, argv[i], Option::getOptionList()[k]->name, parsed_ok ? "ok" : "skip");
++-            }
++-
++-            if (!parsed_ok)
+++            bool parsed_ok = parseSingleOption(argv[i]);
+++            if (!parsed_ok) {
++                 if (strict && match(argv[i], "-"))
++                     fprintf(stderr, "ERROR! Unknown flag \"%s\". Use '--%shelp' for help.\n", argv[i], Option::getHelpPrefixString()), exit(1);
++                 else
++                     argv[j++] = argv[i];
+++            }
++         }
++     }
++ 
++     argc -= (i - j);
++ }
++ 
+++bool Minisat::parseSingleOption(const char* option)
+++{
+++    bool parsed_ok = false;
+++    for(int k = 0; !parsed_ok && k < Option::getOptionList().size(); k++)
+++    {
+++        parsed_ok = Option::getOptionList()[k]->parse(option);
+++        // fprintf(stderr, "checking %d: %s against flag <%s> (%s)\n", i, argv[i], Option::getOptionList()[k]->name, parsed_ok ? "ok" : "skip");
+++    }
+++    return parsed_ok;
+++}
++ 
++ void Minisat::setUsageHelp      (const char* str){ Option::getUsageString() = str; }
++ void Minisat::setHelpPrefixStr  (const char* str){ Option::getHelpPrefixString() = str; }
++diff --git a/minisat/utils/Options.h b/minisat/utils/Options.h
++index 7d2e83a..e95bae5 100644
++--- a/minisat/utils/Options.h
+++++ b/minisat/utils/Options.h
++@@ -39,6 +39,7 @@ extern void parseOptions     (int& argc, char** argv, bool strict = false);
++ extern void printUsageAndExit(int  argc, char** argv, bool verbose = false);
++ extern void setUsageHelp     (const char* str);
++ extern void setHelpPrefixStr (const char* str);
+++extern bool parseSingleOption(const char* option);
++ 
++ 
++ //==================================================================================================
++@@ -86,6 +87,7 @@ class Option
++     friend  void printUsageAndExit (int  argc, char** argv, bool verbose);
++     friend  void setUsageHelp      (const char* str);
++     friend  void setHelpPrefixStr  (const char* str);
+++    friend  bool parseSingleOption (const char* option);
++ };
++ 
++ 
++-- 
++2.23.0
++
+diff --git a/src/Makefile b/src/Makefile
+index 3774d7705..acec757ef 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -128,7 +128,7 @@ minisat2-download:
+ 	@$(TAR) xfz minisat2_2.2.1.orig.tar.gz
+ 	@rm -Rf ../minisat-2.2.1
+ 	@mv minisat2-2.2.1 ../minisat-2.2.1
+-	@(cd ../minisat-2.2.1; patch -p1 < ../scripts/minisat-2.2.1-patch)
++	@(cd ../minisat-2.2.1; patch -p1 < ../scripts/minisat-2.2.1-patch && patch -p1 < ../scripts/minisat-2.2.1-export-parseSingleOption.patch)
+ 	@rm minisat2_2.2.1.orig.tar.gz
+ 
+ cudd-download:
+-- 
+2.23.0
+
+
+From cbaa62516558b308a50480bdc97b8e0ab289f43a Mon Sep 17 00:00:00 2001
+From: Chaitanya Mangla <manglac@amazon.com>
+Date: Wed, 6 Nov 2019 19:41:05 -0800
+Subject: [PATCH 2/5] Pass additional commandline parameters to solvers
+
+Add '--solver-parameters' commandline option to take backend solver
+parameters as a CSV. Solvers can optionally accept this. MiniSAT backend
+updated to accept them.
+---
+ src/cbmc/cbmc_parse_options.cpp       |  6 ++++++
+ src/cbmc/cbmc_parse_options.h         |  1 +
+ src/goto-checker/solver_factory.cpp   | 24 +++++++++++++++++++++---
+ src/solvers/Makefile                  |  2 +-
+ src/solvers/sat/cnf.h                 |  1 +
+ src/solvers/sat/satcheck_minisat2.cpp |  8 ++++++++
+ src/solvers/sat/satcheck_minisat2.h   |  1 +
+ 7 files changed, 39 insertions(+), 4 deletions(-)
+
+diff --git a/src/cbmc/cbmc_parse_options.cpp b/src/cbmc/cbmc_parse_options.cpp
+index a5404457d..3836f7d0d 100644
+--- a/src/cbmc/cbmc_parse_options.cpp
++++ b/src/cbmc/cbmc_parse_options.cpp
+@@ -358,6 +358,11 @@ void cbmc_parse_optionst::get_command_line_options(optionst &options)
+     options.set_option("refine-arithmetic", true);
+   }
+ 
++  if(cmdline.isset("solver-parameters"))
++  {
++    options.set_option("solver-parameters", cmdline.get_comma_separated_values("solver-parameters"));
++  }
++
+   if(cmdline.isset("refine-strings"))
+   {
+     options.set_option("refine-strings", true);
+@@ -1052,6 +1057,7 @@ void cbmc_parse_optionst::help()
+     " --yices                      use Yices\n"
+     " --z3                         use Z3\n"
+     " --refine                     use refinement procedure (experimental)\n"
++    " --solver-parameters          Set parameters in the backend solver\n"
+     HELP_STRING_REFINEMENT_CBMC
+     " --outfile filename           output formula to given file\n"
+     " --arrays-uf-never            never turn arrays into uninterpreted functions\n" // NOLINT(*)
+diff --git a/src/cbmc/cbmc_parse_options.h b/src/cbmc/cbmc_parse_options.h
+index 8d5fba373..f91443130 100644
+--- a/src/cbmc/cbmc_parse_options.h
++++ b/src/cbmc/cbmc_parse_options.h
+@@ -57,6 +57,7 @@ class optionst;
+   "(no-sat-preprocessor)" \
+   "(beautify)" \
+   "(dimacs)(refine)(max-node-refinement):(refine-arrays)(refine-arithmetic)"\
++  "(solver-parameters):"\
+   OPT_STRING_REFINEMENT_CBMC \
+   "(16)(32)(64)(LP64)(ILP64)(LLP64)(ILP32)(LP32)" \
+   "(little-endian)(big-endian)" \
+diff --git a/src/goto-checker/solver_factory.cpp b/src/goto-checker/solver_factory.cpp
+index 90b67d8de..eeb90d091 100644
+--- a/src/goto-checker/solver_factory.cpp
++++ b/src/goto-checker/solver_factory.cpp
+@@ -173,9 +173,27 @@ std::unique_ptr<solver_factoryt::solvert> solver_factoryt::get_default()
+ {
+   auto solver = util_make_unique<solvert>();
+ 
+-  if(
+-    options.get_bool_option("beautify") ||
+-    !options.get_bool_option("sat-preprocessor")) // no simplifier
++  bool is_without_simplifier = options.get_bool_option("beautify") ||
++    !options.get_bool_option("sat-preprocessor");
++
++  if (options.is_set("solver-parameters"))
++  {
++    std::list<std::string> opts = options.get_list_option("solver-parameters");
++    for (auto &opt : opts) {
++      bool success = is_without_simplifier \
++        ? satcheck_no_simplifiert::set_parameter(opt.c_str()) \
++        : satcheckt::set_parameter(opt.c_str());
++      messaget log(message_handler);
++      if (success) {
++        log.warning() << "Setting ";
++      } else {
++        log.warning() << "Cannot set ";
++      }
++      log.warning() << "SAT solver parameter " << opt << messaget::eom;
++    }
++  }
++
++  if(is_without_simplifier) // no simplifier
+   {
+     // simplifier won't work with beautification
+     solver->set_prop(
+diff --git a/src/solvers/Makefile b/src/solvers/Makefile
+index 5f3238de9..f3b1f51af 100644
+--- a/src/solvers/Makefile
++++ b/src/solvers/Makefile
+@@ -17,7 +17,7 @@ endif
+ ifneq ($(MINISAT2),)
+   MINISAT2_SRC=sat/satcheck_minisat2.cpp
+   MINISAT2_INCLUDE=-I $(MINISAT2)
+-  MINISAT2_LIB=$(MINISAT2)/minisat/simp/SimpSolver$(OBJEXT) $(MINISAT2)/minisat/core/Solver$(OBJEXT)
++  MINISAT2_LIB=$(MINISAT2)/minisat/simp/SimpSolver$(OBJEXT) $(MINISAT2)/minisat/core/Solver$(OBJEXT) $(MINISAT2)/minisat/utils/Options$(OBJEXT)
+   CP_CXXFLAGS += -DHAVE_MINISAT2 -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS
+   CLEANFILES += $(MINISAT2_LIB) $(patsubst %$(OBJEXT), %$(DEPEXT), $(MINISAT2_LIB))
+ endif
+diff --git a/src/solvers/sat/cnf.h b/src/solvers/sat/cnf.h
+index b0a67bcd5..4c89e71cd 100644
+--- a/src/solvers/sat/cnf.h
++++ b/src/solvers/sat/cnf.h
+@@ -79,6 +79,7 @@ public:
+     return clause_counter;
+   }
+ 
++  static bool set_parameter(const char *const param) {return false;}
+ protected:
+   enum class statust { INIT, SAT, UNSAT, ERROR };
+   statust status;
+diff --git a/src/solvers/sat/satcheck_minisat2.cpp b/src/solvers/sat/satcheck_minisat2.cpp
+index ddb18d6cc..481ba61e3 100644
+--- a/src/solvers/sat/satcheck_minisat2.cpp
++++ b/src/solvers/sat/satcheck_minisat2.cpp
+@@ -371,3 +371,11 @@ bool satcheck_minisat_simplifiert::is_eliminated(literalt a) const
+ 
+   return solver->isEliminated(a.var_no());
+ }
++
++bool satcheck_minisat_simplifiert::set_parameter(const char *const param)
++{
++  char *p = new char[strlen(param) + 2];
++  p[0] = '-'; p[1] = 0;
++  strcat(p, param);
++  return Minisat::parseSingleOption(p);
++}
+\ No newline at end of file
+diff --git a/src/solvers/sat/satcheck_minisat2.h b/src/solvers/sat/satcheck_minisat2.h
+index d8f2c1afd..e4efaa18f 100644
+--- a/src/solvers/sat/satcheck_minisat2.h
++++ b/src/solvers/sat/satcheck_minisat2.h
+@@ -88,6 +88,7 @@ public:
+   const std::string solver_text() override final;
+   void set_frozen(literalt a) override final;
+   bool is_eliminated(literalt a) const;
++  static bool set_parameter(const char *const params);
+ };
+ 
+ #endif // CPROVER_SOLVERS_SAT_SATCHECK_MINISAT2_H
+-- 
+2.23.0
+
+
+From cbf17bda60b6b5ad6c5428ca2682fedacc233831 Mon Sep 17 00:00:00 2001
+From: Chaitanya Mangla <manglac@amazon.com>
+Date: Wed, 6 Nov 2019 20:16:37 -0800
+Subject: [PATCH 3/5] Comments and newline as per coding standard
+
+---
+ src/solvers/sat/cnf.h                 | 3 +++
+ src/solvers/sat/satcheck_minisat2.cpp | 3 ++-
+ src/solvers/sat/satcheck_minisat2.h   | 6 +++++-
+ 3 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/src/solvers/sat/cnf.h b/src/solvers/sat/cnf.h
+index 4c89e71cd..e1ce39d16 100644
+--- a/src/solvers/sat/cnf.h
++++ b/src/solvers/sat/cnf.h
+@@ -79,6 +79,9 @@ public:
+     return clause_counter;
+   }
+ 
++  // Set optional parameters in the backend solver.
++  // \param param: The parameter as a string
++  // \return True if parameter is valid and has been set.
+   static bool set_parameter(const char *const param) {return false;}
+ protected:
+   enum class statust { INIT, SAT, UNSAT, ERROR };
+diff --git a/src/solvers/sat/satcheck_minisat2.cpp b/src/solvers/sat/satcheck_minisat2.cpp
+index 481ba61e3..8385bc6d8 100644
+--- a/src/solvers/sat/satcheck_minisat2.cpp
++++ b/src/solvers/sat/satcheck_minisat2.cpp
+@@ -378,4 +378,5 @@ bool satcheck_minisat_simplifiert::set_parameter(const char *const param)
+   p[0] = '-'; p[1] = 0;
+   strcat(p, param);
+   return Minisat::parseSingleOption(p);
+-}
+\ No newline at end of file
++}
++
+diff --git a/src/solvers/sat/satcheck_minisat2.h b/src/solvers/sat/satcheck_minisat2.h
+index e4efaa18f..e672732b2 100644
+--- a/src/solvers/sat/satcheck_minisat2.h
++++ b/src/solvers/sat/satcheck_minisat2.h
+@@ -88,7 +88,11 @@ public:
+   const std::string solver_text() override final;
+   void set_frozen(literalt a) override final;
+   bool is_eliminated(literalt a) const;
+-  static bool set_parameter(const char *const params);
++
++  // Set SimpSolver options
++  // \param param: The parameter as a string, e.g. "cl-lim=-1"
++  // \return True if minisat succeeded in setting it
++  static bool set_parameter(const char *const param);
+ };
+ 
+ #endif // CPROVER_SOLVERS_SAT_SATCHECK_MINISAT2_H
+-- 
+2.23.0
+
+
+From 374bf43b2b6cfa8d26840e95084a8c4552db07e6 Mon Sep 17 00:00:00 2001
+From: Chaitanya Mangla <manglac@amazon.com>
+Date: Wed, 6 Nov 2019 21:38:59 -0800
+Subject: [PATCH 4/5] clang-format fixes to pass CI tests
+
+---
+ src/cbmc/cbmc_parse_options.cpp       |  4 +++-
+ src/goto-checker/solver_factory.cpp   | 20 ++++++++++++--------
+ src/solvers/sat/cnf.h                 |  6 +++++-
+ src/solvers/sat/satcheck_minisat2.cpp |  4 ++--
+ 4 files changed, 22 insertions(+), 12 deletions(-)
+
+diff --git a/src/cbmc/cbmc_parse_options.cpp b/src/cbmc/cbmc_parse_options.cpp
+index 3836f7d0d..787eeb3c0 100644
+--- a/src/cbmc/cbmc_parse_options.cpp
++++ b/src/cbmc/cbmc_parse_options.cpp
+@@ -360,7 +360,9 @@ void cbmc_parse_optionst::get_command_line_options(optionst &options)
+ 
+   if(cmdline.isset("solver-parameters"))
+   {
+-    options.set_option("solver-parameters", cmdline.get_comma_separated_values("solver-parameters"));
++    options.set_option(
++      "solver-parameters",
++      cmdline.get_comma_separated_values("solver-parameters"));
+   }
+ 
+   if(cmdline.isset("refine-strings"))
+diff --git a/src/goto-checker/solver_factory.cpp b/src/goto-checker/solver_factory.cpp
+index eeb90d091..b5a9828f3 100644
+--- a/src/goto-checker/solver_factory.cpp
++++ b/src/goto-checker/solver_factory.cpp
+@@ -174,19 +174,23 @@ std::unique_ptr<solver_factoryt::solvert> solver_factoryt::get_default()
+   auto solver = util_make_unique<solvert>();
+ 
+   bool is_without_simplifier = options.get_bool_option("beautify") ||
+-    !options.get_bool_option("sat-preprocessor");
++                               !options.get_bool_option("sat-preprocessor");
+ 
+-  if (options.is_set("solver-parameters"))
++  if(options.is_set("solver-parameters"))
+   {
+     std::list<std::string> opts = options.get_list_option("solver-parameters");
+-    for (auto &opt : opts) {
+-      bool success = is_without_simplifier \
+-        ? satcheck_no_simplifiert::set_parameter(opt.c_str()) \
+-        : satcheckt::set_parameter(opt.c_str());
++    for(auto &opt : opts)
++    {
++      bool success = is_without_simplifier
++                       ? satcheck_no_simplifiert::set_parameter(opt.c_str())
++                       : satcheckt::set_parameter(opt.c_str());
+       messaget log(message_handler);
+-      if (success) {
++      if(success)
++      {
+         log.warning() << "Setting ";
+-      } else {
++      }
++      else
++      {
+         log.warning() << "Cannot set ";
+       }
+       log.warning() << "SAT solver parameter " << opt << messaget::eom;
+diff --git a/src/solvers/sat/cnf.h b/src/solvers/sat/cnf.h
+index e1ce39d16..0b3aebfdc 100644
+--- a/src/solvers/sat/cnf.h
++++ b/src/solvers/sat/cnf.h
+@@ -82,7 +82,11 @@ public:
+   // Set optional parameters in the backend solver.
+   // \param param: The parameter as a string
+   // \return True if parameter is valid and has been set.
+-  static bool set_parameter(const char *const param) {return false;}
++  static bool set_parameter(const char *const param)
++  {
++    return false;
++  }
++
+ protected:
+   enum class statust { INIT, SAT, UNSAT, ERROR };
+   statust status;
+diff --git a/src/solvers/sat/satcheck_minisat2.cpp b/src/solvers/sat/satcheck_minisat2.cpp
+index 8385bc6d8..53ca3ba32 100644
+--- a/src/solvers/sat/satcheck_minisat2.cpp
++++ b/src/solvers/sat/satcheck_minisat2.cpp
+@@ -375,8 +375,8 @@ bool satcheck_minisat_simplifiert::is_eliminated(literalt a) const
+ bool satcheck_minisat_simplifiert::set_parameter(const char *const param)
+ {
+   char *p = new char[strlen(param) + 2];
+-  p[0] = '-'; p[1] = 0;
++  p[0] = '-';
++  p[1] = 0;
+   strcat(p, param);
+   return Minisat::parseSingleOption(p);
+ }
+-
+-- 
+2.23.0
+
+
+From d78e82ad284f0e4eb7054b3a9de5b0b64e71d4e8 Mon Sep 17 00:00:00 2001
+From: Chaitanya Mangla <manglac@amazon.com>
+Date: Wed, 6 Nov 2019 22:21:51 -0800
+Subject: [PATCH 5/5] Use snprintf instead of strcat to prefix string
+
+---
+ src/solvers/sat/satcheck_minisat2.cpp | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/src/solvers/sat/satcheck_minisat2.cpp b/src/solvers/sat/satcheck_minisat2.cpp
+index 53ca3ba32..560f82cf2 100644
+--- a/src/solvers/sat/satcheck_minisat2.cpp
++++ b/src/solvers/sat/satcheck_minisat2.cpp
+@@ -374,9 +374,8 @@ bool satcheck_minisat_simplifiert::is_eliminated(literalt a) const
+ 
+ bool satcheck_minisat_simplifiert::set_parameter(const char *const param)
+ {
+-  char *p = new char[strlen(param) + 2];
+-  p[0] = '-';
+-  p[1] = 0;
+-  strcat(p, param);
+-  return Minisat::parseSingleOption(p);
++  int p_len = strlen(param) + 2;
++  char *p = new char[p_len];
++  int cx = snprintf(p, p_len, "-%s", param); // prefix param with '-'
++  return cx >= 0 && cx < p_len && Minisat::parseSingleOption(p);
+ }
+-- 
+2.23.0
+
