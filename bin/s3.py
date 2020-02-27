@@ -59,7 +59,7 @@ def abort(msg1, msg2=None, data=None, verbose=False):
 # An "X url" is the url of X with the url prefix s3://
 # An object name has two parts: a bucket name and a key
 
-BUCKET_NAME_REGEXP = '[a-z0-9][a-z0-9_-]*'
+BUCKET_NAME_REGEXP = '[a-z0-9][a-z0-9_.-]*'
 KEY_WORD_REGEXP = '[a-z0-9][a-z0-9_.-]*'
 KEY_NAME_REGEXP = '{key}(/{key})*'.format(key=KEY_WORD_REGEXP)
 PATH_REGEXP = '^(s3://)?({})(/({}))?/?(?i)$'.format(BUCKET_NAME_REGEXP,
