@@ -6,11 +6,11 @@
 .PHONY: default install clean
 
 default:
-	$(MAKE) -C ubuntu14-cbmc
+#	$(MAKE) -C ubuntu14-cbmc
 	$(MAKE) -C ubuntu16-cbmc
 
 install:
-	$(MAKE) -C ubuntu14-cbmc $@
+#	$(MAKE) -C ubuntu14-cbmc $@
 	$(MAKE) -C ubuntu16-cbmc $@
 
 clean:
