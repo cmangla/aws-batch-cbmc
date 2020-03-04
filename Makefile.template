@@ -16,6 +16,9 @@ export VIEWERDIR = ~/CBMC-coverage
 # AWS account id
 export AWSID=723634282280
 
+# Build Tools accout id for cloudformation template
+export BUILD_TOOLS_AWSID=$(AWSID)
+
 # AWS Region
 export AWSREGION=us-east-1
 
