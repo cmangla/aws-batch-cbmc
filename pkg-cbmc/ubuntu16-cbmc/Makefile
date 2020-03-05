@@ -72,11 +72,12 @@ cbmc: cbmc-clone cbmc-patch cbmc-build cbmc-tar
 cbmc-clone:
 	mkdir -p $(CBMCGIT)
 	cd $(CBMCGIT); \
-	git clone https://github.com/diffblue/cbmc.git
+	git clone https://github.com/cmangla/cbmc.git
 
 cbmc-patch:
 	cd $(CBMCGIT)/cbmc; \
-	git checkout develop; \
+	git branch backend_solver_params origin/backend_solver_params; \
+	git checkout backend_solver_params; \
 	for f in $(PATCHDIR)/*; do git apply $$f; done
 
 cbmc-build:
