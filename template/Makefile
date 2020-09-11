@@ -11,14 +11,20 @@ install:
 		--stack-name cbmc \
 		--template-body file://cbmc.yaml \
 		--capabilities CAPABILITY_IAM \
-		--parameters ParameterKey=BuildToolsAccountId,ParameterValue=$(BUILD_TOOLS_AWSID) ParameterKey=MaxVcpus,ParameterValue=$(MAX_VCPUS)
+		--parameters \
+		ParameterKey=BuildToolsAccountId,ParameterValue=$(BUILD_TOOLS_AWSID) \
+		ParameterKey=MaxVcpus,ParameterValue=$(MAX_VCPUS) \
+		ParameterKey=ImageTagSuffix,ParameterValue=$(IMAGETAGSUFFIX)
 
 update:
 	aws cloudformation update-stack \
 		--stack-name cbmc \
 		--template-body file://cbmc.yaml \
 		--capabilities CAPABILITY_IAM \
-		--parameters ParameterKey=BuildToolsAccountId,UsePreviousValue=true ParameterKey=MaxVcpus,UsePreviousValue=true
+		--parameters \
+		ParameterKey=BuildToolsAccountId,UsePreviousValue=true \
+		ParameterKey=MaxVcpus,UsePreviousValue=true \
+		ParameterKey=ImageTagSuffix,UsePreviousValue=true
 
 clean:
 	$(RM) *~
